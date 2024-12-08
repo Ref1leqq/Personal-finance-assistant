@@ -157,8 +157,39 @@ class FinanceAssistantApp(tk.Tk):
     def setup_diagrams_page(self):
         tk.Label(self.diagrams_page, text="Диаграммы расходов и доходов", font=("Arial", 16)).pack(pady=10)
         
-    # def create_diagrams(self):
-        
+    def create_diagrams(self):
+        conn = sqlite3.connect('user.db')
+        cursor = conn.cursor()
+
+        # Извлечение данных из базы данных
+        cursor.execute('''
+            SELECT date, amount, category, type
+            FROM transactions
+        ''')
+        data = cursor.fetchall()
+
+        # Закрытие соединения с базой данных
+        conn.close()
+
+        # Преобразование данных в DataFrame
+        df = pd.DataFrame(data, columns=['Date', 'Amount', 'Category', 'type'])
+
+        # Преобразование строки даты в объект datetime
+        df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
+
+        # Суммирование расходов по категориям и времени
+        grouped_df = df.groupby(['Category', pd.Grouper(key='Date', freq='M')]).sum()
+
+        # Построение диаграммы
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(grouped_df.index, grouped_df['Amount'], label='Расходы')
+        ax.set_xlabel('Категория')
+        ax.set_ylabel('Сумма')
+        ax.legend()
+        plt.title('Ежемесячные расходы по категориям')
+        plt.grid(True)
+        plt.savefig('expenditure_by_category.png')
+        plt.show()
 
     def setup_transactions_page(self):
         tk.Label(self.transactions_page, text="История транзакций", font=("Arial", 16)).pack(pady=10)
