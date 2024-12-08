@@ -418,10 +418,11 @@ class FinanceAssistantApp(tk.Tk):
         description_entry = tk.Entry(add_window)
         description_entry.pack(pady=5)
 
+
         def validate_date(date_str):
             try:
-                datetime.strptime(date_str, "%Y-%m-%d")
-                return True
+                date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                return date >= datetime.now().date()
             except ValueError:
                 return False
 
@@ -431,6 +432,7 @@ class FinanceAssistantApp(tk.Tk):
                 return True
             except ValueError:
                 return False
+
 
         def save_reminder():
             title = title_entry.get()
@@ -484,6 +486,25 @@ class FinanceAssistantApp(tk.Tk):
     def check_reminders(self):
         def check():
             now = datetime.now()
+            week_later = now + timedelta(days=7)
+
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
+            reminders = cursor.fetchall()
+            conn.close()
+
+            for title, date_str, time_str in reminders:
+                reminder_date = datetime.strptime(date_str, "%Y-%m-%d")
+                if now <= reminder_date <= week_later:
+                    messagebox.showinfo("Напоминание", f"Напоминание '{title}' истекает через неделю.")
+
+            # Проверять каждую минуту
+            self.after(60000, check)
+            check()
+
+        def check_db():
+            now = datetime.now()
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
             cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
@@ -496,9 +517,8 @@ class FinanceAssistantApp(tk.Tk):
                     messagebox.showinfo("Напоминание", f"Напоминание: {title}")
 
             # Проверять каждую минуту
-            self.after(60000, check)
-
-        check()
+            self.after(60000, check_db)
+            check_db()
 
     def update_goal_progress(self, amount):
         conn = sqlite3.connect('users.db')
