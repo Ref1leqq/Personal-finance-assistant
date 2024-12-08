@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, PhotoImage
 import sqlite3
-from datetime import datetime
-
+from datetime import datetime, timedelta
+import threading
+import re
 
 def create_db():
     conn = sqlite3.connect('users.db') #подключение к базе данных
@@ -40,6 +41,7 @@ def create_db():
             title TEXT NOT NULL,
             date TEXT NOT NULL,
             time TEXT NOT NULL,
+            description_reminder TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
@@ -60,6 +62,7 @@ def create_db():
     conn.commit()
     conn.close()
 
+create_db()
 
 
 class FinanceAssistantApp(tk.Tk):
@@ -81,7 +84,7 @@ class FinanceAssistantApp(tk.Tk):
         top_frame.pack(fill=tk.X)
 
         user_icon = tk.Label(top_frame, text="👤", font=("Arial", 24), bg="lightblue")
-        user_icon.pack(side=tk.LEFT, padx=10)
+        user_icon.pack(side=tk.LEFT, padx=15)
 
         user_label = tk.Label(top_frame, text=f"Добро пожаловать, {self.user[1]}!", font=("Arial", 16), bg="lightblue")
         user_label.pack(side=tk.LEFT)
@@ -107,6 +110,8 @@ class FinanceAssistantApp(tk.Tk):
         self.setup_transactions_page()
         self.setup_goals_page()
         self.setup_reminders_page()
+
+        self.check_reminders()
 
     def setup_home_page(self):
         tk.Label(self.home_page, text="Общая информация", font=("Arial", 16)).pack(pady=10)
@@ -334,15 +339,67 @@ class FinanceAssistantApp(tk.Tk):
     def setup_reminders_page(self):
         tk.Label(self.reminders_page, text="Напоминания", font=("Arial", 16)).pack(pady=10)
 
-        self.reminders_list = tk.Listbox(self.reminders_page)
-        self.reminders_list.pack(fill=tk.BOTH, expand=True)
+        # Таблица для отображения напоминаний
+        self.reminders_tree = ttk.Treeview(self.reminders_page, columns=("Title", "Date", "Time", "Description"), show="headings")
+        self.reminders_tree.heading("Title", text="Название")
+        self.reminders_tree.heading("Date", text="Дата")
+        self.reminders_tree.heading("Time", text="Время")
+        self.reminders_tree.heading("Description", text="Описание")
+        self.reminders_tree.pack(fill=tk.BOTH, expand=True)
+        self.reminders_tree.column("Time", stretch=False, width=100 )
 
         tk.Button(self.reminders_page, text="Добавить напоминание", command=self.add_reminder_window).pack(pady=10)
+
+        tk.Button(self.reminders_page, text="Удалить напоминание", command=self.delete_reminder).pack(pady=5)
+
+        self.load_reminders()
+
+    def load_reminders(self):
+        # Очистка текущего содержимого
+        for item in self.reminders_tree.get_children():
+            self.reminders_tree.delete(item)
+
+        # Загрузка напоминаний из базы данных
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT title, date, time, description_reminder FROM reminders WHERE user_id = ?', (self.user[0],))
+        for row in cursor.fetchall():
+            self.reminders_tree.insert("", tk.END, values=row)
+        conn.close()
+
+    def delete_reminder(self):
+        selected_item = self.reminders_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Ошибка", "Выберите напоминание для удаления.")
+            return
+
+        # Получаем значения из выбранной строки
+        item_values = self.reminders_tree.item(selected_item)['values']
+        title = item_values[0]
+        date = item_values[1]
+        time = item_values[2]
+
+        # Подтверждение удаления
+        if messagebox.askyesno("Подтверждение", f"Вы уверены, что хотите удалить напоминание '{title}'?"):
+            try:
+                conn = sqlite3.connect('users.db')
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM reminders WHERE user_id=? AND title=? AND date=? AND time=?",
+                               (self.user[0], title, date, time))
+                conn.commit()
+                conn.close()
+
+                # Удаляем строку из Treeview
+                self.reminders_tree.delete(selected_item)
+
+                messagebox.showinfo("Успех", "Напоминание удалено.")
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось удалить напоминание: {e}")
 
     def add_reminder_window(self):
         add_window = tk.Toplevel(self)
         add_window.title("Добавить напоминание")
-        add_window.geometry("300x300")
+        add_window.geometry("300x400")
         add_window.resizable(False, False)
 
         tk.Label(add_window, text="Название:").pack(pady=5)
@@ -357,27 +414,111 @@ class FinanceAssistantApp(tk.Tk):
         time_entry = tk.Entry(add_window)
         time_entry.pack(pady=5)
 
+        tk.Label(add_window, text="Описание:").pack(pady=5)
+        description_entry = tk.Entry(add_window)
+        description_entry.pack(pady=5)
+
+
+        def validate_date(date_str):
+            try:
+                date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                return date >= datetime.now().date()
+            except ValueError:
+                return False
+
+        def validate_time(time_str):
+            try:
+                datetime.strptime(time_str, "%H:%M")
+                return True
+            except ValueError:
+                return False
+
+
         def save_reminder():
             title = title_entry.get()
             date = date_entry.get()
             time = time_entry.get()
+            description = description_entry.get()
 
+            # Проверка на пустые поля
             if not title or not date or not time:
-                messagebox.showerror("Ошибка", "Заполните все поля!")
+                messagebox.showerror("Ошибка", "Заполните все обязательные поля!")
                 return
+
+            # Проверка формата даты
+            if not validate_date(date):
+                messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
+                return
+
+            # Проверка формата времени
+            if not validate_time(time):
+                messagebox.showerror("Ошибка", "Некорректный формат времени! Используйте ЧЧ:ММ.")
+                return
+
+            # Проверка на допустимость символов в названии и описании
+            if not re.match(r"^[a-zA-Zа-яА-Я0-9\s\-.,!?]+$", title):
+                messagebox.showerror("Ошибка", "Название содержит недопустимые символы!")
+                return
+
+            if description and not re.match(r"^[a-zA-Zа-яА-Я0-9\s\-.,!?]+$", description):
+                messagebox.showerror("Ошибка", "Описание содержит недопустимые символы!")
+                return
+
+            # Сохранение данных в базу данных
+            try:
+                conn = sqlite3.connect('users.db')
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO reminders (user_id, title, date, time, description_reminder) 
+                    VALUES (?, ?, ?, ?, ?)
+                """, (self.user[0], title, date, time, description))
+                conn.commit()
+                conn.close()
+
+                messagebox.showinfo("Успех", "Напоминание добавлено!")
+                add_window.destroy()
+                self.load_reminders()
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось добавить напоминание: {e}")
+
+        tk.Button(add_window, text="Сохранить", command=save_reminder).pack(pady=10)
+
+    def check_reminders(self):
+        def check():
+            now = datetime.now()
+            week_later = now + timedelta(days=7)
 
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO reminders (user_id, title, date, time) VALUES (?, ?, ?, ?)
-            """, (self.user[0], title, date, time))
-            conn.commit()
+            cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
+            reminders = cursor.fetchall()
             conn.close()
 
-            messagebox.showinfo("Успех", "Напоминание добавлено!")
-            add_window.destroy()
+            for title, date_str, time_str in reminders:
+                reminder_date = datetime.strptime(date_str, "%Y-%m-%d")
+                if now <= reminder_date <= week_later:
+                    messagebox.showinfo("Напоминание", f"Напоминание '{title}' истекает через неделю.")
 
-        tk.Button(add_window, text="Сохранить", command=save_reminder).pack(pady=10)
+            # Проверять каждую минуту
+            self.after(60000, check)
+            check()
+
+        def check_db():
+            now = datetime.now()
+            conn = sqlite3.connect('users.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
+            reminders = cursor.fetchall()
+            conn.close()
+
+            for title, date_str, time_str in reminders:
+                reminder_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                if now <= reminder_time <= now + timedelta(minutes=1):
+                    messagebox.showinfo("Напоминание", f"Напоминание: {title}")
+
+            # Проверять каждую минуту
+            self.after(60000, check_db)
+            check_db()
 
     def update_goal_progress(self, amount):
         conn = sqlite3.connect('users.db')
@@ -387,6 +528,11 @@ class FinanceAssistantApp(tk.Tk):
             SELECT id, current_amount, target_amount FROM goals WHERE user_id = ?
         ''', (self.user[0],))
         goals = cursor.fetchall()
+
+        if not goals:
+            messagebox.showinfo("Информация", "У вас нет активных целей.")
+            conn.close()
+            return
 
         for goal_id, current_amount, target_amount in goals:
             new_amount = current_amount + amount
@@ -459,11 +605,13 @@ def login():
         messagebox.showerror("Ошибка", "Пароли не совпадают")
         return
 
+
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE login = ? AND password = ?", (login, password))
     user = cursor.fetchone()
     conn.close()
+
 
     if user and password == confirm_password:
         messagebox.showinfo("Успех", "Вход выполнен успешно!")
@@ -474,7 +622,7 @@ def login():
         messagebox.showerror("Ошибка", "Проверьте корректность введённых данных!")
 
 
-create_db()
+#create_db()
 
 window = tk.Tk()
 window.resizable(width=False, height=False)
@@ -484,8 +632,8 @@ window.geometry("800x600")
 icon = PhotoImage(file= "logo.png")
 window.iconphoto(False, icon)
 
-nameapp_label = tk.Label(window, text = "Finance Helper",fg="#57a1f8", font=('Microsoft Yahei UI Light',23,'bold'))
-nameapp_label.place(relx=.5,anchor="n")
+app_label = tk.Label(window, text = "Финансовый помощник",fg="#57a1f8", font=('Microsoft Yahei UI Light',23,'bold'), pady=40)
+app_label.place(relx=.5,anchor="n")
 login_label = tk.Label(window, text="Логин:")
 login_label.place(x=370,y=100)
 login_entry = tk.Entry(window)
@@ -508,4 +656,3 @@ register_button = tk.Button(window, text="Регистрация", command=regis
 register_button.place(x=375,y=320)
 
 window.mainloop()
-#1
