@@ -4,6 +4,8 @@ import sqlite3
 from datetime import datetime, timedelta
 import threading
 import re
+import pandas as pd
+import matplotlib.pyplot as plt    
 
 def create_db():
     conn = sqlite3.connect('users.db') #подключение к базе данных
@@ -96,17 +98,20 @@ class FinanceAssistantApp(tk.Tk):
 
         # Вкладки
         self.home_page = tk.Frame(notebook)
+        self.diagrams_page = tk.Frame(notebook)
         self.transactions_page = tk.Frame(notebook)
         self.goals_page = tk.Frame(notebook)
         self.reminders_page = tk.Frame(notebook)
 
         notebook.add(self.home_page, text="Главная")
+        notebook.add(self.diagrams_page, text="Диаграммы")
         notebook.add(self.transactions_page, text="Транзакции")
         notebook.add(self.goals_page, text="Цели")
         notebook.add(self.reminders_page, text="Напоминания")
 
         # Настройка вкладок
         self.setup_home_page()
+        self.setup_diagrams_page()
         self.setup_transactions_page()
         self.setup_goals_page()
         self.setup_reminders_page()
@@ -148,6 +153,12 @@ class FinanceAssistantApp(tk.Tk):
         self.balance_label.config(text=f"Текущий баланс: {current_balance:.2f} RUB")
         self.earnings_label.config(text=f"Заработано: {total_income:.2f} RUB")
         self.expenses_label.config(text=f"Потрачено: {total_expense:.2f} RUB")
+    
+    def setup_diagrams_page(self):
+        tk.Label(self.diagrams_page, text="Диаграммы расходов и доходов", font=("Arial", 16)).pack(pady=10)
+        
+    # def create_diagrams(self):
+        
 
     def setup_transactions_page(self):
         tk.Label(self.transactions_page, text="История транзакций", font=("Arial", 16)).pack(pady=10)
@@ -186,7 +197,7 @@ class FinanceAssistantApp(tk.Tk):
         # Радиокнопки для выбора типа транзакции
         def update_categories():
             if transaction_type.get() == "Доход":
-                combobox["values"] = []  # Убираем значения для выбора
+                combobox["values"] = ["Зарплата"]  # Убираем значения для выбора
                 category_entry.config(state=tk.NORMAL)  # Разрешаем ввод
             else:
                 combobox["values"] = ["Продукты", "Одежда", "Такси"]  # Категории для расхода
