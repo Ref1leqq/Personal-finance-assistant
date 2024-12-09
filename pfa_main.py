@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timedelta
 import threading
 import re
-import pandas as pd
+# import pandas as pd
 import matplotlib.pyplot as plt    
 
 def create_db():
@@ -228,12 +228,14 @@ class FinanceAssistantApp(tk.Tk):
         # Радиокнопки для выбора типа транзакции
         def update_categories():
             if transaction_type.get() == "Доход":
-                combobox["values"] = ["Зарплата"]  # Убираем значения для выбора
-                category_entry.config(state=tk.NORMAL)  # Разрешаем ввод
-            else:
+                combobox["values"] = ["Зарплата"] 
+                combobox.current(0) # Убираем значения для выбора
+                #category_entry.config(state=tk.NORMAL)  # Разрешаем ввод
+            if transaction_type.get() == "Расход":
                 combobox["values"] = ["Продукты", "Одежда", "Такси"]  # Категории для расхода
-                category_entry.delete(0, tk.END)  # Очищаем пользовательский ввод
-                category_entry.config(state=tk.DISABLED)  # Запрещаем ввод
+                combobox.current(0)
+                  # Очищаем пользовательский ввод
+                #category_entry.config(state=tk.NORMAL)  # Запрещаем ввод
 
         income_radiobutton = tk.Radiobutton(add_window, text="Доход", variable=transaction_type, value="Доход",
                                             command=update_categories)
@@ -248,27 +250,27 @@ class FinanceAssistantApp(tk.Tk):
         combobox = ttk.Combobox(add_window)
         combobox.pack(padx=6, pady=6)
 
-        category_entry = tk.Entry(add_window, state=tk.DISABLED)  # Поле для пользовательского ввода категории дохода
-        category_entry.pack(padx=6, pady=6)
+        # category_entry = tk.Entry(add_window, state=tk.DISABLED)  # Поле для пользовательского ввода категории дохода
+        # category_entry.pack(padx=6, pady=6)
 
         tk.Label(add_window, text="Сумма:").pack(pady=5)
         amount_entry = tk.Entry(add_window)
         amount_entry.pack(pady=5)
 
         def save_transaction():
-            category = category_entry.get() if transaction_type.get() == "Доход" else combobox.get()
+            category = combobox.get() 
             amount = amount_entry.get()
             transaction_type_value = transaction_type.get()
 
             if not category or not amount:
-                messagebox.showerror("Ошибка", "Заполните все поля!")
-                return
+                return messagebox.showerror("Ошибка", "Заполните все поля!")
+                
 
             try:
                 amount = float(amount)
             except ValueError:
-                messagebox.showerror("Ошибка", "Сумма должна быть числом!")
-                return
+                return messagebox.showerror("Ошибка", "Сумма должна быть числом!")
+                
 
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
@@ -356,12 +358,12 @@ class FinanceAssistantApp(tk.Tk):
                 target_amount = float(amount_entry.get())
                 target_date = datetime.strptime(date_entry.get(), "%Y-%m-%d").date()
             except ValueError:
-                messagebox.showerror("Ошибка", "Введите корректные данные.")
-                return
+                return messagebox.showerror("Ошибка", "Введите корректные данные.")
+                
 
             if not title or target_amount <= 0 or target_date <= datetime.now().date():
-                messagebox.showerror("Ошибка", "Некорректные данные цели.")
-                return
+                return messagebox.showerror("Ошибка", "Некорректные данные цели.")
+                
 
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
@@ -412,8 +414,8 @@ class FinanceAssistantApp(tk.Tk):
     def delete_reminder(self):
         selected_item = self.reminders_tree.selection()
         if not selected_item:
-            messagebox.showwarning("Ошибка", "Выберите напоминание для удаления.")
-            return
+           return messagebox.showwarning("Ошибка", "Выберите напоминание для удаления.")
+            
 
         # Получаем значения из выбранной строки
         item_values = self.reminders_tree.item(selected_item)['values']
@@ -484,27 +486,27 @@ class FinanceAssistantApp(tk.Tk):
 
             # Проверка на пустые поля
             if not title or not date or not time:
-                messagebox.showerror("Ошибка", "Заполните все обязательные поля!")
-                return
+                return messagebox.showerror("Ошибка", "Заполните все обязательные поля!")
+                
 
             # Проверка формата даты
             if not validate_date(date):
-                messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
-                return
+                return messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
+                
 
             # Проверка формата времени
             if not validate_time(time):
-                messagebox.showerror("Ошибка", "Некорректный формат времени! Используйте ЧЧ:ММ.")
-                return
+                return messagebox.showerror("Ошибка", "Некорректный формат времени! Используйте ЧЧ:ММ.")
+                
 
             # Проверка на допустимость символов в названии и описании
             if not re.match(r"^[a-zA-Zа-яА-Я0-9\s\-.,!?]+$", title):
-                messagebox.showerror("Ошибка", "Название содержит недопустимые символы!")
-                return
+                return messagebox.showerror("Ошибка", "Название содержит недопустимые символы!")
+                
 
             if description and not re.match(r"^[a-zA-Zа-яА-Я0-9\s\-.,!?]+$", description):
-                messagebox.showerror("Ошибка", "Описание содержит недопустимые символы!")
-                return
+                return messagebox.showerror("Ошибка", "Описание содержит недопустимые символы!")
+                
 
             # Сохранение данных в базу данных
             try:
@@ -616,12 +618,12 @@ def register():
     confirm_password = confirm_password_entry.get()
 
     if not login or not password or not confirm_password:
-        messagebox.showerror("Ошибка", "Заполните все поля!")
-        return
+        return messagebox.showerror("Ошибка", "Заполните все поля!")
+        
 
     if password != confirm_password:
-        messagebox.showerror("Ошибка", "Пароли не совпадают!")
-        return
+        return messagebox.showerror("Ошибка", "Пароли не совпадают!")
+        
 
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -635,17 +637,31 @@ def register():
     finally:
         conn.close()
 
+def correct_login(login):
+    """
+    Проверяет длину логина
+
+    :param login: имя пользователя
+    :type login: string
+    :returns True
+    :rtype: boolean
+    :raises PermissionError: if len(login) <= 4
+    """
+    if len(login) <= 4:
+        raise PermissionError('Длина логина должна быть больше 4')
+    return True
+
 
 def login():
     login = login_entry.get()
     password = password_entry.get()
     confirm_password = confirm_password_entry.get()
     if not login or not password or not confirm_password:
-        messagebox.showerror("Ошибка", "Заполните все поля!")
-        return
+        return messagebox.showerror("Ошибка", "Заполните все поля!")
+        
     if password != confirm_password:
-        messagebox.showerror("Ошибка", "Пароли не совпадают")
-        return
+        return messagebox.showerror("Ошибка", "Пароли не совпадают")
+        
 
 
     conn = sqlite3.connect('users.db')
