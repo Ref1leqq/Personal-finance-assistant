@@ -80,9 +80,6 @@ class FinanceAssistantApp(tk.Tk):
         # Создание интерфейса
         self.create_main_interface()
 
-        # Вызов метода notify в конце конструктора
-        self.notify()  
-
 
 
     def create_main_interface(self):
@@ -121,7 +118,7 @@ class FinanceAssistantApp(tk.Tk):
         self.setup_goals_page()
         self.setup_reminders_page()
 
-        self.check_reminders()
+#        self.check_reminders()
 
     def setup_home_page(self):
         tk.Label(self.home_page, text="Общая информация", font=("Arial", 16)).pack(pady=10)
@@ -246,12 +243,9 @@ class FinanceAssistantApp(tk.Tk):
         # Радиокнопки для выбора типа транзакции
         def update_categories():
             if transaction_type.get() == "Доход":
-                combobox["values"] = ["Зарплата"]  # Убираем значения для выбора
-                category_entry.config(state=tk.NORMAL)  # Разрешаем ввод
+                combobox["values"] = ["Зарплата", "Переводы", "Инвестиции"]  # Убираем значения для выбора
             else:
                 combobox["values"] = ["Продукты", "Одежда", "Такси"]  # Категории для расхода
-                category_entry.delete(0, tk.END)  # Очищаем пользовательский ввод
-                category_entry.config(state=tk.DISABLED)  # Запрещаем ввод
 
         income_radiobutton = tk.Radiobutton(add_window, text="Доход", variable=transaction_type, value="Доход",
                                             command=update_categories)
@@ -263,22 +257,22 @@ class FinanceAssistantApp(tk.Tk):
         tk.Label(add_window, text="Категория:").pack(pady=5)
 
         # Поле выбора или ввода категории
-        combobox = ttk.Combobox(add_window)
+        combobox = ttk.Combobox(add_window, state="readonly")
         combobox.pack(padx=6, pady=6)
 
-        category_entry = tk.Entry(add_window, state=tk.DISABLED)  # Поле для пользовательского ввода категории дохода
-        category_entry.pack(padx=6, pady=6)
+        #category_entry = tk.Entry(add_window, state=tk.DISABLED)  # Поле для пользовательского ввода категории дохода
+        #category_entry.pack(padx=6, pady=6)
 
         tk.Label(add_window, text="Сумма:").pack(pady=5)
         amount_entry = tk.Entry(add_window)
         amount_entry.pack(pady=5)
 
         def save_transaction():
-            category = category_entry.get() if transaction_type.get() == "Доход" else combobox.get()
+            category = combobox.get() #if transaction_type.get() == "Доход" else combobox.get()
             amount = amount_entry.get()
             transaction_type_value = transaction_type.get()
 
-            if not category or not amount:
+            if not amount:
                 messagebox.showerror("Ошибка", "Заполните все поля!")
                 return
 
@@ -417,24 +411,36 @@ class FinanceAssistantApp(tk.Tk):
         for goal_id, title, target_amount, current_amount, target_date in goals:
             # Вычисляем количество оставшихся дней
             remaining_days = (datetime.strptime(target_date, "%Y-%m-%d") - datetime.now()).days
-            remaining_text = f"{remaining_days} дн." if remaining_days > 0 else "Срок истёк"
+            remaining_text = f"{remaining_days + 1} дн." if remaining_days >= 0 else "Срок истёк"
 
             # Заполняем таблицу
-            self.goals_tree.insert(
-                "",
-                tk.END,
-                values=(
-                    title,  # Название цели
-                    f"{target_amount}",  # Цель
-                    f"{current_amount}",  # Текущая сумма
-                    remaining_text  # Осталось времени
+            if current_amount >= target_amount:
+                self.goals_tree.insert(
+                    "",
+                    tk.END,
+                    values=(title, f"{current_amount}/{target_amount}", "Цель достигнута!"),
+                    tags=("completed",)
                 )
-            )
+                delete_button = tk.Button(self.goals_page, text="Удалить",
+                                          command=lambda gid=goal_id: self.delete_completed_goal(gid))
+                delete_button.pack(pady=5)
+            else:
+                self.goals_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        title,  # Название цели
+                        f"{target_amount}",  # Цель
+                        f"{current_amount}",  # Текущая сумма
+                        remaining_text  # Осталось времени
+                    )
+                )
 
     def add_goal_window(self):
         add_goal_window = tk.Toplevel(self)
         add_goal_window.title("Добавить цель")
-        add_goal_window.geometry("300x250")
+        add_goal_window.geometry("300x300")
+        add_goal_window.resizable(False, False)
 
         tk.Label(add_goal_window, text="Название цели:").pack(pady=10)
         title_entry = tk.Entry(add_goal_window)
@@ -448,6 +454,12 @@ class FinanceAssistantApp(tk.Tk):
         target_date_entry = tk.Entry(add_goal_window)
         target_date_entry.pack(pady=5)
 
+
+        #if not validate_date(targetdate):
+        #    messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
+        #    return
+
+
         def save_goal():
             title = title_entry.get()
             target_amount = target_amount_entry.get()
@@ -455,6 +467,9 @@ class FinanceAssistantApp(tk.Tk):
 
             if not title or not target_amount or not target_date:
                 messagebox.showerror("Ошибка", "Заполните все поля!")
+                return
+            if not validate_date(target_date):
+                messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
                 return
 
             try:
@@ -566,12 +581,12 @@ class FinanceAssistantApp(tk.Tk):
         description_entry.pack(pady=5)
 
 
-        def validate_date(date_str):
-            try:
-                date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                return date >= datetime.now().date()
-            except ValueError:
-                return False
+        #def validate_date(date_str):
+        #    try:
+        #        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        #        return date >= datetime.now().date()
+        #    except ValueError:
+        #        return False
 
         def validate_time(time_str):
             try:
@@ -630,7 +645,7 @@ class FinanceAssistantApp(tk.Tk):
 
         tk.Button(add_window, text="Сохранить", command=save_reminder).pack(pady=10)
 
-        def check_reminders(self):
+        def check_reminders_db(self):
             def check_db():
                 now = datetime.now()
                 conn = sqlite3.connect('users.db')
@@ -666,9 +681,7 @@ class FinanceAssistantApp(tk.Tk):
             # Проверять каждую минуту
             self.after(60000, check_db)
             check_db()
-    
-        def notify(self):
-            print("Метод notify запущен!")  # Этот вывод должен появиться при запуске метода
+
 
             def check_reminders():
                 print("Запуск проверки напоминаний...")  # Проверка, что поток запущен
@@ -747,7 +760,12 @@ class FinanceAssistantApp(tk.Tk):
         messagebox.showinfo("Успех", "Цель удалена.")
         self.update_goals_list()
 
-
+def validate_date(date_str):
+    try:
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        return date >= datetime.now().date()
+    except ValueError:
+        return False
 
 def clear_text():
     login_entry.delete(0, 'end')
