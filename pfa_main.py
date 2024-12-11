@@ -155,55 +155,98 @@ class FinanceAssistantApp(tk.Tk):
         self.balance_label.config(text=f"Текущий баланс: {current_balance:.2f} RUB")
         self.earnings_label.config(text=f"Заработано: {total_income:.2f} RUB")
         self.expenses_label.config(text=f"Потрачено: {total_expense:.2f} RUB")
-    
+
     def setup_diagrams_page(self):
         tk.Label(self.diagrams_page, text="Диаграммы расходов и доходов", font=("Arial", 16)).pack(pady=10)
-        tk.Button(self.diagrams_page, text="Показать диаграммы", command=self.create_diagrams).pack(pady=10)
 
-    def create_diagrams(self):
+        # Кнопка для открытия нового окна
+        tk.Button(
+            self.diagrams_page,
+            text="Создать диаграммы",
+            command=self.open_diagrams_window
+        ).pack(pady=10)
+
+    def open_diagrams_window(self):
+        diagrams_window = tk.Toplevel(self)
+        diagrams_window.title("Настройка диаграмм")
+        diagrams_window.geometry("400x400")
+
+        # Выбор типа данных
+        tk.Label(diagrams_window, text="Тип данных:").pack(pady=5)
+        data_type = tk.StringVar(value="Все")
+        ttk.Combobox(
+            diagrams_window,
+            textvariable=data_type,
+            values=["Все", "Только доходы", "Только расходы"]
+        ).pack(pady=5)
+
+        # Выбор типа диаграммы
+        tk.Label(diagrams_window, text="Тип визуализации:").pack(pady=5)
+        chart_type = tk.StringVar(value="Круговая диаграмма")
+        ttk.Combobox(
+            diagrams_window,
+            textvariable=chart_type,
+            values=["Круговая диаграмма", "Гистограмма", "Гистограмма(Цвета)"]
+        ).pack(pady=5)
+
+        # Кнопка для генерации диаграммы
+        tk.Button(
+            diagrams_window,
+            text="Построить диаграмму",
+            command=lambda: self.generate_chart(data_type.get(), chart_type.get())
+        ).pack(pady=10)
+
+    def generate_chart(self, data_type, chart_type):
+        # Получение данных из базы
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
-
-        # Извлечение данных о доходах и расходах
-        cursor.execute('''
-            SELECT category, amount, type
-            FROM transactions
-            WHERE user_id = ?
-        ''', (self.user[0],))
+        query = "SELECT category, amount, type FROM transactions WHERE user_id = ?"
+        cursor.execute(query, (self.user[0],))
         data = cursor.fetchall()
         conn.close()
 
         # Преобразование в DataFrame
-        df = pd.DataFrame(data, columns=['Category', 'Amount', 'Type'])
+        df = pd.DataFrame(data, columns=["Category", "Amount", "Type"])
 
-        # Построение круговых диаграмм
-        income_df = df[df['Type'] == "Доход"]
-        expense_df = df[df['Type'] == "Расход"]
+        # Фильтрация данных
+        if data_type == "Только доходы":
+            df = df[df["Type"] == "Доход"]
+        elif data_type == "Только расходы":
+            df = df[df["Type"] == "Расход"]
 
-        # Гистограмма доходов
-        plt.figure(figsize=(10, 6))
-        income_df.groupby('Category').sum()['Amount'].plot(kind='bar', title="Доходы по категориям")
-        plt.xlabel("Категория")
-        plt.ylabel("Сумма (₽)")
-        plt.show()
+        # Построение диаграммы
+        if chart_type == "Круговая диаграмма":
+            self.plot_pie_chart(df)
+        elif chart_type == "Гистограмма":
+            self.plot_bar_chart(df)
+        elif chart_type == "Гистограмма(Цвета)":
+            self.plot_gisto_chart(df)
 
-        # Гистограмма расходов
-        plt.figure(figsize=(10, 6))
-        expense_df.groupby('Category').sum()['Amount'].plot(kind='bar', title="Расходы по категориям")
-        plt.xlabel("Категория")
-        plt.ylabel("Сумма (₽)")
-        plt.show()
-
-        # Круговая диаграмма доходов
+    def plot_pie_chart(self, df):
         plt.figure(figsize=(8, 8))
-        income_df.groupby('Category').sum()['Amount'].plot.pie(autopct='%1.1f%%', title="Доходы по категориям")
-        plt.ylabel('')
+        df.groupby("Category")["Amount"].sum().plot.pie(autopct='%1.1f%%', startangle=90)
+        plt.title("Круговая диаграмма")
+        plt.ylabel("")
         plt.show()
 
-        # Круговая диаграмма расходов
+    def plot_bar_chart(self, df):
+        plt.figure(figsize=(10, 6))
+        df.groupby("Category")["Amount"].sum().plot(kind="bar")
+        plt.title("Гистограмма")
+        plt.xlabel("Категория")
+        plt.ylabel("Сумма")
+        plt.show()
+
+    def plot_gisto_chart(self, df):
         plt.figure(figsize=(8, 8))
-        expense_df.groupby('Category').sum()['Amount'].plot.pie(autopct='%1.1f%%', title="Расходы по категориям")
-        plt.ylabel('')
+
+        grouped = df.groupby("Category")["Amount"].sum()
+        colors = ["red", "green", "blue", "purple", "orange"]
+        grouped.plot(kind="bar", color=colors[:len(grouped)])
+
+        plt.title("Гистограмма(Цвета)")
+        plt.xlabel("Категория")
+        plt.ylabel("Сумма")
         plt.show()
 
     def setup_transactions_page(self):
@@ -313,7 +356,8 @@ class FinanceAssistantApp(tk.Tk):
 
         # Кнопки для добавления и пополнения цели
         tk.Button(self.goals_page, text="Добавить цель", command=self.add_goal_window).pack(pady=10)
-        tk.Button(self.goals_page, text="Пополнить цель", command=self.top_up_goal).pack(pady=10)
+        #tk.Button(self.goals_page, text="Пополнить цель", command=self.top_up_goal).pack(pady=10)
+        tk.Button(self.goals_page, text="Удалить цель", command=self.delete_completed_goal).pack(pady=10)
 
         # Обновляем список целей
         self.update_goals_list()  # Вставляем вызов метода для обновления списка целей
@@ -336,60 +380,60 @@ class FinanceAssistantApp(tk.Tk):
         amount_entry = tk.Entry(top_up_window)
         amount_entry.pack(pady=10)
 
-        def save_top_up():
-            try:
-                amount = float(amount_entry.get())
-                if amount <= 0:
-                    raise ValueError("Сумма должна быть положительной!")
+        #def save_top_up():
+        #    try:
+        #        amount = float(amount_entry.get())
+        #        if amount <= 0:
+        #            raise ValueError("Сумма должна быть положительной!")
 
-                # Проверка баланса пользователя перед пополнением
-                conn = sqlite3.connect('users.db')
-                cursor = conn.cursor()
+        #        # Проверка баланса пользователя перед пополнением
+        #        conn = sqlite3.connect('users.db')
+        #        cursor = conn.cursor()
 
-                # Получаем текущий баланс пользователя
-                cursor.execute('SELECT balance FROM users WHERE id = ?', (self.user[0],))
-                user_balance = cursor.fetchone()[0]
+        #        # Получаем текущий баланс пользователя
+        #        cursor.execute('SELECT balance FROM users WHERE id = ?', (self.user[0],))
+        #        user_balance = cursor.fetchone()[0]
 
-                print(f"Текущий баланс: {user_balance}")  # Отладочный вывод
+        #        print(f"Текущий баланс: {user_balance}")  # Отладочный вывод
 
-                # Проверяем, что тип данных баланса правильный
-                if isinstance(user_balance, str):
-                    user_balance = float(user_balance)  # Преобразуем в число, если это строка
+        #        # Проверяем, что тип данных баланса правильный
+        #        if isinstance(user_balance, str):
+        #            user_balance = float(user_balance)  # Преобразуем в число, если это строка
 
-                # Проверяем, хватает ли средств на балансе
-                if amount > user_balance:
-                    messagebox.showerror("Ошибка", f"Недостаточно средств на балансе! Баланс: {user_balance}")
-                    conn.close()
-                    return
+        #        # Проверяем, хватает ли средств на балансе
+        #        if amount > user_balance:
+        #            messagebox.showerror("Ошибка", f"Недостаточно средств на балансе! Баланс: {user_balance}")
+        #            conn.close()
+        #            return
 
                 # Обновляем текущую сумму цели в базе данных
-                cursor.execute('''
-                    UPDATE goals SET current_amount = current_amount + ? WHERE id = ?
-                ''', (amount, goal_id))
-                conn.commit()
+        #        cursor.execute('''
+        #            UPDATE goals SET current_amount = current_amount + ? WHERE id = ?
+        #        ''', (amount, goal_id))
+        #        conn.commit()
 
                 # Обновляем баланс пользователя (сумма списывается с баланса)
-                cursor.execute('''
-                    UPDATE users
-                    SET balance = balance - ?
-                    WHERE id = ?
-                ''', (amount, self.user[0]))
-                conn.commit()
+        #        cursor.execute('''
+        #            UPDATE users
+        #            SET balance = balance - ?
+        #            WHERE id = ?
+        #        ''', (amount, self.user[0]))
+        #        conn.commit()
 
-                conn.close()
+        #        conn.close()
 
                 # Обновляем данные в интерфейсе
-                self.update_balance()  # Обновляем баланс
-                self.update_goals_list()  # Обновляем список целей
+        #        self.update_balance()  # Обновляем баланс
+        #        self.update_goals_list()  # Обновляем список целей
 
-                messagebox.showinfo("Успех", f"Цель пополнена на {amount}₽.")
-                top_up_window.destroy()
+        #       messagebox.showinfo("Успех", f"Цель пополнена на {amount}₽.")
+        #        top_up_window.destroy()
 
-            except ValueError as e:
-                messagebox.showerror("Ошибка", str(e))
+        #    except ValueError as e:
+        #        messagebox.showerror("Ошибка", str(e))
 
         # Используем lambda, чтобы передать self в метод save_top_up
-        tk.Button(top_up_window, text="Подтвердить", command=lambda: save_top_up()).pack(pady=10)
+        #tk.Button(top_up_window, text="Подтвердить", command=lambda: save_top_up()).pack(pady=10)
 
     def update_goals_list(self):
         # Очищаем таблицу
@@ -407,13 +451,14 @@ class FinanceAssistantApp(tk.Tk):
         goals = cursor.fetchall()
         conn.close()
 
-        # Добавляем данные о целях в таблицу
+        # Используем словарь для отслеживания добавленных кнопок
+        #added_buttons = {}
+
         for goal_id, title, target_amount, current_amount, target_date in goals:
             # Вычисляем количество оставшихся дней
             remaining_days = (datetime.strptime(target_date, "%Y-%m-%d") - datetime.now()).days
             remaining_text = f"{remaining_days + 1} дн." if remaining_days >= 0 else "Срок истёк"
 
-            # Заполняем таблицу
             if current_amount >= target_amount:
                 self.goals_tree.insert(
                     "",
@@ -421,9 +466,15 @@ class FinanceAssistantApp(tk.Tk):
                     values=(title, f"{current_amount}/{target_amount}", "Цель достигнута!"),
                     tags=("completed",)
                 )
-                delete_button = tk.Button(self.goals_page, text="Удалить",
-                                          command=lambda gid=goal_id: self.delete_completed_goal(gid))
-                delete_button.pack(pady=5)
+                # Добавляем кнопку "Удалить", если она еще не добавлена
+                #if goal_id not in added_buttons:
+                #    delete_button = tk.Button(
+                #        self.goals_page,
+                #        text="Удалить",
+                #        command=lambda gid=goal_id: self.delete_completed_goal(gid)
+                #    )
+                #    delete_button.pack(pady=5)
+                #    added_buttons[goal_id] = delete_button
             else:
                 self.goals_tree.insert(
                     "",
@@ -718,7 +769,6 @@ class FinanceAssistantApp(tk.Tk):
 
 
 
-
     def update_goal_progress(self, amount):
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
@@ -728,10 +778,10 @@ class FinanceAssistantApp(tk.Tk):
         ''', (self.user[0],))
         goals = cursor.fetchall()
 
-        if not goals:
-            messagebox.showinfo("Информация", "У вас нет активных целей.")
-            conn.close()
-            return
+        #if not goals:
+        #    messagebox.showinfo("Информация", "У вас нет активных целей.")
+        #    conn.close()
+        #    return
 
         for goal_id, current_amount, target_amount in goals:
             new_amount = current_amount + amount
@@ -751,14 +801,37 @@ class FinanceAssistantApp(tk.Tk):
 
         self.update_goals_list()
 
-    def delete_completed_goal(self, goal_id):
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
-        conn.commit()
-        conn.close()
-        messagebox.showinfo("Успех", "Цель удалена.")
-        self.update_goals_list()
+    def delete_completed_goal(self):
+        # Получаем выбранный элемент
+        selected_item = self.goals_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Ошибка", "Выберите цель для удаления.")
+            return
+
+        # Получаем данные из выбранного элемента
+        item_values = self.goals_tree.item(selected_item)['values']
+        title = item_values[0]
+
+        # Подтверждение удаления
+        if messagebox.askyesno("Подтверждение", f"Вы уверены, что хотите удалить цель '{title}'?"):
+            try:
+                conn = sqlite3.connect('users.db')
+                cursor = conn.cursor()
+
+                # Удаляем цель из базы данных по её названию и пользователю
+                cursor.execute("""
+                    DELETE FROM goals 
+                    WHERE user_id = ? AND title = ?
+                """, (self.user[0], title))
+                conn.commit()
+                conn.close()
+
+                # Удаляем элемент из Treeview
+                self.goals_tree.delete(selected_item)
+
+                messagebox.showinfo("Успех", "Цель удалена.")
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось удалить цель: {e}")
 
 def validate_date(date_str):
     try:
