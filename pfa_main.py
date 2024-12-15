@@ -6,13 +6,27 @@ import threading
 import re
 import pandas as pd
 import matplotlib.pyplot as plt 
-import time   
+import time  
+import pydoctor
+import pytest
+import os
+os.chdir(os.path.dirname(__file__))
 
+# ================ База данных ================
 def create_db():
+    """
+    Создает базу данных и таблицы, если они еще не существуют.
+
+    Таблицы:
+    - users: Хранит данные пользователей.
+    - goals: Хранит финансовые цели пользователей.
+    - reminders: Хранит напоминания пользователей.
+    - transactions: Хранит транзакции (доходы и расходы).
+    """
     conn = sqlite3.connect('users.db') #подключение к базе данных
     cursor = conn.cursor() #создание курсора
 
-    # Создание таблицы пользователей
+    # Таблица пользователей
     cursor.execute(''' 
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,9 +81,43 @@ def create_db():
 
 create_db()
 
-
+# ================ Основной класс приложения ================
 class FinanceAssistantApp(tk.Tk):
+    """
+    Главное окно приложения "Финансовый помощник".
+
+    Атрибуты:
+        user (tuple): Текущий пользователь (ID и логин).
+
+    Методы:
+        create_main_interface(): Создает основной интерфейс приложения.
+        update_balance(): Обновляет данные баланса, доходов и расходов.
+        generate_chart(data_type, chart_type): Генерирует диаграмму на основе данных пользователя.
+        add_transaction_window(): Открывает окно для добавления транзакции.
+        setup_diagrams_page(): Настраивает вкладку диаграмм.
+        plot_pie_chart(df): Строит круговую диаграмму.
+        plot_bar_chart(df): Строит гистограмму.
+        plot_gisto_chart(df): Строит гистограмму с цветами.
+        setup_transactions_page(): Настраивает вкладку для управления транзакциями.
+        update_transactions_list(): Обновляет список транзакций.
+        setup_goals_page(): Настраивает вкладку для управления финансовыми целями.
+        update_goals_list(): Обновляет список финансовых целей.
+        add_goal_window(): Открывает окно для добавления новой финансовой цели.
+        delete_completed_goal(): Удаляет выполненную финансовую цель.
+        setup_reminders_page(): Настраивает вкладку для работы с напоминаниями.
+        load_reminders(): Загружает напоминания из базы данных.
+        add_reminder_window(): Открывает окно для добавления напоминания.
+        delete_reminder(): Удаляет выбранное напоминание.
+        check_reminders(): Проверяет напоминания на актуальность.
+        check_reminders_loop(): Запускает цикл проверки напоминаний.
+    """
     def __init__(self, user):
+        """
+        Инициализирует главное окно приложения.
+
+        Args:
+            user (tuple): Кортеж (ID пользователя, логин пользователя).
+        """
         super().__init__()
         self.title("Финансовый помощник")
         self.geometry("800x600")
@@ -79,14 +127,16 @@ class FinanceAssistantApp(tk.Tk):
 
         # Создание интерфейса
         self.create_main_interface()
+        self.check_reminders_loop()
 
-        # Вызов метода notify в конце конструктора
-        self.notify()  
 
 
 
     def create_main_interface(self):
-        # Верхний фрейм с приветствием и значком пользователя
+        """
+        Создает основной интерфейс с вкладками и информацией о пользователе.
+        """
+        # Верхняя панель
         top_frame = tk.Frame(self, bg="lightblue")
         top_frame.pack(fill=tk.X)
 
@@ -97,11 +147,10 @@ class FinanceAssistantApp(tk.Tk):
         user_label.pack(side=tk.LEFT)
 
 
-        # Основной интерфейс с вкладками
+        # Основные вкладки
         notebook = ttk.Notebook(self)
         notebook.pack(fill=tk.BOTH, expand=True)
 
-        # Вкладки
         self.home_page = tk.Frame(notebook)
         self.diagrams_page = tk.Frame(notebook)
         self.transactions_page = tk.Frame(notebook)
@@ -121,9 +170,11 @@ class FinanceAssistantApp(tk.Tk):
         self.setup_goals_page()
         self.setup_reminders_page()
 
-        self.check_reminders()
 
     def setup_home_page(self):
+        """
+        Настраивает вкладку "Главная" с отображением баланса и кнопкой добавления транзакции.
+        """
         tk.Label(self.home_page, text="Общая информация", font=("Arial", 16)).pack(pady=10)
 
         self.balance_label = tk.Label(self.home_page, text="Текущий баланс: 0.00 RUB", font=("Arial", 14))
@@ -140,6 +191,9 @@ class FinanceAssistantApp(tk.Tk):
         self.update_balance()
 
     def update_balance(self):
+        """
+        Обновляет текущий баланс пользователя, суммируя доходы и расходы из базы данных.
+        """
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
         cursor.execute('''
@@ -158,58 +212,139 @@ class FinanceAssistantApp(tk.Tk):
         self.balance_label.config(text=f"Текущий баланс: {current_balance:.2f} RUB")
         self.earnings_label.config(text=f"Заработано: {total_income:.2f} RUB")
         self.expenses_label.config(text=f"Потрачено: {total_expense:.2f} RUB")
-    
-    def setup_diagrams_page(self):
-        tk.Label(self.diagrams_page, text="Диаграммы расходов и доходов", font=("Arial", 16)).pack(pady=10)
-        tk.Button(self.diagrams_page, text="Показать диаграммы", command=self.create_diagrams).pack(pady=10)
 
-    def create_diagrams(self):
+    def setup_diagrams_page(self):
+        """
+        Настраивает вкладку для работы с диаграммами.
+        """
+        tk.Label(self.diagrams_page, text="Диаграммы расходов и доходов", font=("Arial", 16)).pack(pady=10)
+
+        # Кнопка для открытия нового окна
+        tk.Button(
+            self.diagrams_page,
+            text="Создать диаграммы",
+            command=self.open_diagrams_window
+        ).pack(pady=10)
+
+    def open_diagrams_window(self):
+        """
+        Открывает окно настройки и генерации диаграмм.
+        """
+        diagrams_window = tk.Toplevel(self)
+        diagrams_window.title("Настройка диаграмм")
+        diagrams_window.geometry("400x400")
+        diagrams_window.resizable(False, False)
+
+        # Выбор типа данных
+        tk.Label(diagrams_window, text="Тип данных:").pack(pady=5)
+        data_type = tk.StringVar(value="Выберите тип транзакций")
+        ttk.Combobox(
+            diagrams_window,
+            textvariable=data_type,
+            state="readonly",
+            values=["Только доходы", "Только расходы"]
+        ).pack(pady=5)
+
+        # Выбор типа диаграммы
+        tk.Label(diagrams_window, text="Тип визуализации:").pack(pady=5)
+        chart_type = tk.StringVar(value="Круговая диаграмма")
+        ttk.Combobox(
+            diagrams_window,
+            textvariable=chart_type,
+            state="readonly",
+            values=["Круговая диаграмма", "Гистограмма", "Гистограмма(Цвета)"]
+        ).pack(pady=5)
+
+        # Кнопка для генерации диаграммы
+        tk.Button(
+            diagrams_window,
+            text="Построить диаграмму",
+            command=lambda: self.generate_chart(data_type.get(), chart_type.get())
+        ).pack(pady=15)
+
+    def generate_chart(self, data_type, chart_type):
+        """
+        Генерирует и отображает диаграмму на основе данных пользователя.
+
+        Args:
+            data_type (str): Тип данных ("Только доходы" или "Только расходы").
+            chart_type (str): Тип диаграммы ("Круговая диаграмма" и др.).
+        """
+        # Получение данных из базы
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
-
-        # Извлечение данных о доходах и расходах
-        cursor.execute('''
-            SELECT category, amount, type
-            FROM transactions
-            WHERE user_id = ?
-        ''', (self.user[0],))
+        query = "SELECT category, amount, type FROM transactions WHERE user_id = ?"
+        cursor.execute(query, (self.user[0],))
         data = cursor.fetchall()
         conn.close()
 
         # Преобразование в DataFrame
-        df = pd.DataFrame(data, columns=['Category', 'Amount', 'Type'])
+        df = pd.DataFrame(data, columns=["Category", "Amount", "Type"])
 
-        # Построение круговых диаграмм
-        income_df = df[df['Type'] == "Доход"]
-        expense_df = df[df['Type'] == "Расход"]
+        # Фильтрация данных
+        if data_type == "Только доходы":
+            df = df[df["Type"] == "Доход"]
+        elif data_type == "Только расходы":
+            df = df[df["Type"] == "Расход"]
 
-        # Гистограмма доходов
-        plt.figure(figsize=(10, 6))
-        income_df.groupby('Category').sum()['Amount'].plot(kind='bar', title="Доходы по категориям")
-        plt.xlabel("Категория")
-        plt.ylabel("Сумма (₽)")
-        plt.show()
+        # Построение диаграммы
+        if chart_type == "Круговая диаграмма":
+            self.plot_pie_chart(df)
+        elif chart_type == "Гистограмма":
+            self.plot_bar_chart(df)
+        elif chart_type == "Гистограмма(Цвета)":
+            self.plot_gisto_chart(df)
 
-        # Гистограмма расходов
-        plt.figure(figsize=(10, 6))
-        expense_df.groupby('Category').sum()['Amount'].plot(kind='bar', title="Расходы по категориям")
-        plt.xlabel("Категория")
-        plt.ylabel("Сумма (₽)")
-        plt.show()
+    def plot_pie_chart(self, df):
+        """
+        Строит круговую диаграмму на основе данных.
 
-        # Круговая диаграмма доходов
+        Args:
+            df (pd.DataFrame): Данные с колонками "Category" и "Amount".
+        """
         plt.figure(figsize=(8, 8))
-        income_df.groupby('Category').sum()['Amount'].plot.pie(autopct='%1.1f%%', title="Доходы по категориям")
-        plt.ylabel('')
+        df.groupby("Category")["Amount"].sum().plot.pie(autopct='%1.1f%%', startangle=90)
+        plt.title("Круговая диаграмма")
+        plt.ylabel("")
+        plt.tight_layout()
         plt.show()
 
-        # Круговая диаграмма расходов
+    def plot_bar_chart(self, df):
+        """
+        Строит гистограмму на основе данных.
+
+        Args:
+            df (pd.DataFrame): Данные с колонками "Category" и "Amount".
+        """
+        plt.figure(figsize=(10, 6))
+        df.groupby("Category")["Amount"].sum().plot(kind="bar")
+        plt.title("Гистограмма")
+        plt.xlabel("Категория")
+        plt.ylabel("Сумма")
+        plt.show()
+
+    def plot_gisto_chart(self, df):
+        """
+        Строит гистограмму с использованием различных цветов для категорий.
+
+        Args:
+            df (pd.DataFrame): Данные с колонками "Category" и "Amount".
+        """
         plt.figure(figsize=(8, 8))
-        expense_df.groupby('Category').sum()['Amount'].plot.pie(autopct='%1.1f%%', title="Расходы по категориям")
-        plt.ylabel('')
+
+        grouped = df.groupby("Category")["Amount"].sum()
+        colors = ["red", "green", "blue", "purple", "orange"]
+        grouped.plot(kind="bar", color=colors[:len(grouped)])
+
+        plt.title("Гистограмма(Цвета)")
+        plt.xlabel("Категория")
+        plt.ylabel("Сумма")
         plt.show()
 
     def setup_transactions_page(self):
+        """
+        Настраивает вкладку для отображения и управления транзакциями.
+        """
         tk.Label(self.transactions_page, text="История транзакций", font=("Arial", 16)).pack(pady=10)
         self.transactions_tree = ttk.Treeview(self.transactions_page, columns=("category", "amount","type", "date"), show="headings")
         self.transactions_tree.heading("category", text="Категория")
@@ -220,6 +355,9 @@ class FinanceAssistantApp(tk.Tk):
         self.update_transactions_list()
 
     def update_transactions_list(self):
+        """
+        Обновляет список транзакций из базы данных.
+        """
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
         cursor.execute("""
@@ -235,51 +373,66 @@ class FinanceAssistantApp(tk.Tk):
             self.transactions_tree.insert("", tk.END, values=transaction)
 
     def add_transaction_window(self):
+        """
+        Открывает окно для добавления новой транзакции.
+        """
         add_window = tk.Toplevel(self)
         add_window.title("Добавить транзакцию")
         add_window.geometry("300x400")  # Увеличиваем высоту окна для радиокнопок
 
-        tk.Label(add_window, text="Тип транзакции:").pack(pady=5)
+        tk.Label(add_window, text="Тип транзакции:").pack(pady=15)
 
         transaction_type = tk.StringVar(value="Расход")  # Значение по умолчанию - "Расход"
 
-        # Радиокнопки для выбора типа транзакции
-        def update_categories():
-            if transaction_type.get() == "Доход":
-                combobox["values"] = ["Зарплата"]  # Убираем значения для выбора
-                category_entry.config(state=tk.NORMAL)  # Разрешаем ввод
-            else:
-                combobox["values"] = ["Продукты", "Одежда", "Такси"]  # Категории для расхода
-                category_entry.delete(0, tk.END)  # Очищаем пользовательский ввод
-                category_entry.config(state=tk.DISABLED)  # Запрещаем ввод
-
-        income_radiobutton = tk.Radiobutton(add_window, text="Доход", variable=transaction_type, value="Доход",
-                                            command=update_categories)
-        income_radiobutton.pack()
-        expense_radiobutton = tk.Radiobutton(add_window, text="Расход", variable=transaction_type, value="Расход",
-                                             command=update_categories)
-        expense_radiobutton.pack()
-
-        tk.Label(add_window, text="Категория:").pack(pady=5)
-
         # Поле выбора или ввода категории
-        combobox = ttk.Combobox(add_window)
+        category_type = tk.StringVar(value="Выберите категорию")
+        combobox = ttk.Combobox(add_window, textvariable=category_type, state="readonly")
         combobox.pack(padx=6, pady=6)
 
-        category_entry = tk.Entry(add_window, state=tk.DISABLED)  # Поле для пользовательского ввода категории дохода
-        category_entry.pack(padx=6, pady=6)
+        def update_categories():
+            """
+            Устанавливает начальные значения категорий
+            """
+            if transaction_type.get() == "Доход":
+                combobox["values"] = ["Зарплата", "Переводы", "Инвестиции"]
+            else:
+                combobox["values"] = ["Продукты", "Одежда", "Такси"]
 
-        tk.Label(add_window, text="Сумма:").pack(pady=5)
+            # Обновление начального значения после изменения типа транзакции
+            category_type.set("Выберите категорию")
+
+        # Радиокнопки для выбора типа транзакции
+        income_radiobutton = tk.Radiobutton(add_window, text="Доход", variable=transaction_type, value="Доход",
+                                            command=update_categories, pady=20)
+        income_radiobutton.pack()
+        expense_radiobutton = tk.Radiobutton(add_window, text="Расход", variable=transaction_type, value="Расход",
+                                             command=update_categories, pady=5)
+        expense_radiobutton.pack()
+
+        # Устанавливаем начальные значения категорий (по умолчанию для "Расход")
+        combobox["values"] = ["Продукты", "Одежда", "Такси"]
+        category_type.set("Выберите категорию")
+
+        tk.Label(add_window, text="Сумма:").pack(pady=15)
         amount_entry = tk.Entry(add_window)
-        amount_entry.pack(pady=5)
+        amount_entry.pack(pady=2)
 
         def save_transaction():
-            category = category_entry.get() if transaction_type.get() == "Доход" else combobox.get()
+            """
+            Сохраняет новую транзакцию в базу данных.
+            """
+            category = category_type.get()  # Текущая выбранная категория
             amount = amount_entry.get()
             transaction_type_value = transaction_type.get()
 
-            if not category or not amount:
-                messagebox.showerror("Ошибка", "Заполните все поля!")
+            # Проверка категории
+            if category == "Выберите категорию":
+                messagebox.showerror("Ошибка", "Пожалуйста, выберите категорию!")
+                return
+
+            # Проверка суммы
+            if not amount:
+                messagebox.showerror("Ошибка", "Введите сумму!")
                 return
 
             try:
@@ -288,6 +441,7 @@ class FinanceAssistantApp(tk.Tk):
                 messagebox.showerror("Ошибка", "Сумма должна быть числом!")
                 return
 
+            # Сохранение транзакции в базу данных
             conn = sqlite3.connect('users.db')
             cursor = conn.cursor()
             cursor.execute("""
@@ -307,6 +461,9 @@ class FinanceAssistantApp(tk.Tk):
         tk.Button(add_window, text="Сохранить", command=save_transaction).pack(pady=10)
 
     def setup_goals_page(self):
+        """
+        Настраивает вкладку для управления финансовыми целями.
+        """
         tk.Label(self.goals_page, text="Финансовые цели", font=("Arial", 16)).pack(pady=10)
 
         # Создаем таблицу для отображения целей
@@ -319,12 +476,16 @@ class FinanceAssistantApp(tk.Tk):
 
         # Кнопки для добавления и пополнения цели
         tk.Button(self.goals_page, text="Добавить цель", command=self.add_goal_window).pack(pady=10)
-        tk.Button(self.goals_page, text="Пополнить цель", command=self.top_up_goal).pack(pady=10)
+        #tk.Button(self.goals_page, text="Пополнить цель", command=self.top_up_goal).pack(pady=10)
+        tk.Button(self.goals_page, text="Удалить цель", command=self.delete_completed_goal).pack(pady=10)
 
         # Обновляем список целей
         self.update_goals_list()  # Вставляем вызов метода для обновления списка целей
 
     def top_up_goal(self):
+        """
+        Открывает окно для пополнения выбранной финансовой цели.
+        """
         selected_item = self.goals_tree.selection()
         if not selected_item:
             messagebox.showwarning("Ошибка", "Выберите цель для пополнения.")
@@ -342,62 +503,11 @@ class FinanceAssistantApp(tk.Tk):
         amount_entry = tk.Entry(top_up_window)
         amount_entry.pack(pady=10)
 
-        def save_top_up():
-            try:
-                amount = float(amount_entry.get())
-                if amount <= 0:
-                    raise ValueError("Сумма должна быть положительной!")
-
-                # Проверка баланса пользователя перед пополнением
-                conn = sqlite3.connect('users.db')
-                cursor = conn.cursor()
-
-                # Получаем текущий баланс пользователя
-                cursor.execute('SELECT balance FROM users WHERE id = ?', (self.user[0],))
-                user_balance = cursor.fetchone()[0]
-
-                print(f"Текущий баланс: {user_balance}")  # Отладочный вывод
-
-                # Проверяем, что тип данных баланса правильный
-                if isinstance(user_balance, str):
-                    user_balance = float(user_balance)  # Преобразуем в число, если это строка
-
-                # Проверяем, хватает ли средств на балансе
-                if amount > user_balance:
-                    messagebox.showerror("Ошибка", f"Недостаточно средств на балансе! Баланс: {user_balance}")
-                    conn.close()
-                    return
-
-                # Обновляем текущую сумму цели в базе данных
-                cursor.execute('''
-                    UPDATE goals SET current_amount = current_amount + ? WHERE id = ?
-                ''', (amount, goal_id))
-                conn.commit()
-
-                # Обновляем баланс пользователя (сумма списывается с баланса)
-                cursor.execute('''
-                    UPDATE users
-                    SET balance = balance - ?
-                    WHERE id = ?
-                ''', (amount, self.user[0]))
-                conn.commit()
-
-                conn.close()
-
-                # Обновляем данные в интерфейсе
-                self.update_balance()  # Обновляем баланс
-                self.update_goals_list()  # Обновляем список целей
-
-                messagebox.showinfo("Успех", f"Цель пополнена на {amount}₽.")
-                top_up_window.destroy()
-
-            except ValueError as e:
-                messagebox.showerror("Ошибка", str(e))
-
-        # Используем lambda, чтобы передать self в метод save_top_up
-        tk.Button(top_up_window, text="Подтвердить", command=lambda: save_top_up()).pack(pady=10)
 
     def update_goals_list(self):
+        """
+        Обновляет список финансовых целей из базы данных.
+        """
         # Очищаем таблицу
         for row in self.goals_tree.get_children():
             self.goals_tree.delete(row)
@@ -413,28 +523,40 @@ class FinanceAssistantApp(tk.Tk):
         goals = cursor.fetchall()
         conn.close()
 
-        # Добавляем данные о целях в таблицу
+
         for goal_id, title, target_amount, current_amount, target_date in goals:
             # Вычисляем количество оставшихся дней
             remaining_days = (datetime.strptime(target_date, "%Y-%m-%d") - datetime.now()).days
-            remaining_text = f"{remaining_days} дн." if remaining_days > 0 else "Срок истёк"
+            remaining_text = f"{remaining_days + 1} дн." if remaining_days >= 0 else "Срок истёк"
 
-            # Заполняем таблицу
-            self.goals_tree.insert(
-                "",
-                tk.END,
-                values=(
-                    title,  # Название цели
-                    f"{target_amount}",  # Цель
-                    f"{current_amount}",  # Текущая сумма
-                    remaining_text  # Осталось времени
+            if current_amount >= target_amount:
+                self.goals_tree.insert(
+                    "",
+                    tk.END,
+                    values=(title, f"{current_amount}/{target_amount}", "Цель достигнута!"),
+                    tags=("completed",)
                 )
-            )
+
+            else:
+                self.goals_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        title,  # Название цели
+                        f"{target_amount}",  # Цель
+                        f"{current_amount}",  # Текущая сумма
+                        remaining_text  # Осталось времени
+                    )
+                )
 
     def add_goal_window(self):
+        """
+        Открывает окно для добавления новой финансовой цели.
+        """
         add_goal_window = tk.Toplevel(self)
         add_goal_window.title("Добавить цель")
-        add_goal_window.geometry("300x250")
+        add_goal_window.geometry("300x300")
+        add_goal_window.resizable(False, False)
 
         tk.Label(add_goal_window, text="Название цели:").pack(pady=10)
         title_entry = tk.Entry(add_goal_window)
@@ -448,13 +570,21 @@ class FinanceAssistantApp(tk.Tk):
         target_date_entry = tk.Entry(add_goal_window)
         target_date_entry.pack(pady=5)
 
+
+
         def save_goal():
+            """
+            Сохраняет новую финансовую цель в базе данных.
+            """
             title = title_entry.get()
             target_amount = target_amount_entry.get()
             target_date = target_date_entry.get()
 
             if not title or not target_amount or not target_date:
                 messagebox.showerror("Ошибка", "Заполните все поля!")
+                return
+            if not validate_date(target_date):
+                messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
                 return
 
             try:
@@ -484,6 +614,9 @@ class FinanceAssistantApp(tk.Tk):
         tk.Button(add_goal_window, text="Сохранить цель", command=save_goal).pack(pady=10)
 
     def setup_reminders_page(self):
+        """
+        Настраивает вкладку для управления напоминаниями.
+        """
         tk.Label(self.reminders_page, text="Напоминания", font=("Arial", 16)).pack(pady=10)
 
         # Таблица для отображения напоминаний
@@ -502,6 +635,9 @@ class FinanceAssistantApp(tk.Tk):
         self.load_reminders()
 
     def load_reminders(self):
+        """
+        Загружает все напоминания пользователя из базы данных и отображает их в интерфейсе.
+        """
         # Очистка текущего содержимого
         for item in self.reminders_tree.get_children():
             self.reminders_tree.delete(item)
@@ -515,6 +651,9 @@ class FinanceAssistantApp(tk.Tk):
         conn.close()
 
     def delete_reminder(self):
+        """
+        Удаляет выбранное пользователем напоминание.
+        """
         selected_item = self.reminders_tree.selection()
         if not selected_item:
             messagebox.showwarning("Ошибка", "Выберите напоминание для удаления.")
@@ -544,6 +683,9 @@ class FinanceAssistantApp(tk.Tk):
                 messagebox.showerror("Ошибка", f"Не удалось удалить напоминание: {e}")
 
     def add_reminder_window(self):
+        """
+        Открывает окно для добавления нового напоминания.
+        """
         add_window = tk.Toplevel(self)
         add_window.title("Добавить напоминание")
         add_window.geometry("300x400")
@@ -565,15 +707,16 @@ class FinanceAssistantApp(tk.Tk):
         description_entry = tk.Entry(add_window)
         description_entry.pack(pady=5)
 
-
-        def validate_date(date_str):
-            try:
-                date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                return date >= datetime.now().date()
-            except ValueError:
-                return False
-
         def validate_time(time_str):
+            """
+            Проверяет корректность формата времени.
+
+            Args:
+                time_str (str): Время в формате "ЧЧ:ММ".
+
+            Returns:
+                bool: True, если время корректно, иначе False.
+            """
             try:
                 datetime.strptime(time_str, "%H:%M")
                 return True
@@ -582,6 +725,9 @@ class FinanceAssistantApp(tk.Tk):
 
 
         def save_reminder():
+            """
+            Сохраняет новое напоминание в базе данных.
+            """
             title = title_entry.get()
             date = date_entry.get()
             time = time_entry.get()
@@ -630,83 +776,67 @@ class FinanceAssistantApp(tk.Tk):
 
         tk.Button(add_window, text="Сохранить", command=save_reminder).pack(pady=10)
 
-        def check_reminders(self):
-            def check_db():
-                now = datetime.now()
-                conn = sqlite3.connect('users.db')
-                cursor = conn.cursor()
-                cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
-                reminders = cursor.fetchall()
-                conn.close()
+#        self.check_reminders_loop()
 
-                for title, date_str, time_str in reminders:
-                    reminder_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                    if now <= reminder_time <= now + timedelta(minutes=1):
-                        messagebox.showinfo("Напоминание", f"Напоминание: {title}")
+    def check_reminders(self):
+        """
+        Проверяет напоминания в базе данных на устаревшие или близкие к текущему времени.
+        """
+        now = datetime.now()
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
 
-                # Проверять каждую минуту
-                self.after(60000, check_db)
+        # Получение всех напоминаний пользователя
+        cursor.execute('SELECT id, title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
+        reminders = cursor.fetchall()
 
-            check_db()
+        for reminder_id, title, date_str, time_str in reminders:
+            if not date_str.strip() or not time_str.strip():
+                # Пропускаем записи с пустыми значениями даты или времени
+                continue
 
+            try:
+                reminder_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
 
-        def check_db():
-            now = datetime.now()
-            conn = sqlite3.connect('users.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT title, date, time FROM reminders WHERE user_id = ?', (self.user[0],))
-            reminders = cursor.fetchall()
-            conn.close()
+                if reminder_datetime < now:
+                    # Пометка устаревших напоминаний и очистка столбцов даты и времени
+                    cursor.execute('''
+                        UPDATE reminders 
+                        SET description_reminder = ?, date = '', time = '' 
+                        WHERE id = ?''',
+                                   ("Напоминание устарело.", reminder_id))
 
-            for title, date_str, time_str in reminders:
-                reminder_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                if now <= reminder_time <= now + timedelta(minutes=1):
-                    messagebox.showinfo("Напоминание", f"Напоминание: {title}")
+                if now <= reminder_datetime <= now + timedelta(minutes=30):
+                    # Уведомление о напоминаниях, которые скоро наступят
+                    messagebox.showinfo("Напоминание", f"Напоминание скоро истечет!\n\nНапоминание: {title}")
 
-            # Проверять каждую минуту
-            self.after(60000, check_db)
-            check_db()
-    
-        def notify(self):
-            print("Метод notify запущен!")  # Этот вывод должен появиться при запуске метода
+            except ValueError as e:
+                print(f"Ошибка обработки напоминания ID {reminder_id}: {e}")
 
-            def check_reminders():
-                print("Запуск проверки напоминаний...")  # Проверка, что поток запущен
-                while True:
-                    now = datetime.now()
-                    print(f"Текущее время: {now.strftime('%Y-%m-%d %H:%M')}")  # Вывод времени для отладки
+        conn.commit()
+        conn.close()
 
-                    try:
-                        conn = sqlite3.connect('users.db')
-                        cursor = conn.cursor()
-                        cursor.execute('''
-                            SELECT title, date, time
-                            FROM reminders
-                            WHERE user_id = ? AND date = ? AND time = ?
-                        ''', (self.user[0], now.strftime("%Y-%m-%d"), "18:25"))
-                        
-                        reminders = cursor.fetchall()
-                        conn.close()
+    def check_reminders_loop(self):
+        """
+        Запускает проверку напоминаний в фоне каждые 1 минут.
+        """
 
-                        if reminders:
-                            for reminder in reminders:
-                                print(f"Напоминание найдено: {reminder[0]}")  # Печать напоминания
-                                messagebox.showinfo("Напоминание", f"{reminder[0]} наступило!")  # Показываем уведомление
+        def delayed_check():
+            self.check_reminders()
+            self.after(600000, delayed_check)  # 300000 мс = 1 минут
 
-                    except Exception as e:
-                        print(f"Ошибка при проверке напоминаний: {e}")
-
-                    time.sleep(60)  # Проверяем каждую минуту
-
-            # Запускаем поток в фоновом режиме
-            print("Запуск потока для уведомлений...")
-            threading.Thread(target=check_reminders, daemon=True).start()  # Создаём и запускаем поток
-
-
+        # Задержка для выполнения первого запуска (например, 1 секунда после загрузки окна)
+        self.after(1000, delayed_check)
 
 
 
     def update_goal_progress(self, amount):
+        """
+        Обновляет прогресс всех финансовых целей пользователя на основании внесённой суммы.
+
+        Args:
+            amount (float): Сумма для обновления прогресса целей.
+        """
         conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
 
@@ -715,10 +845,10 @@ class FinanceAssistantApp(tk.Tk):
         ''', (self.user[0],))
         goals = cursor.fetchall()
 
-        if not goals:
-            messagebox.showinfo("Информация", "У вас нет активных целей.")
-            conn.close()
-            return
+        #if not goals:
+        #    messagebox.showinfo("Информация", "У вас нет активных целей.")
+        #    conn.close()
+        #    return
 
         for goal_id, current_amount, target_amount in goals:
             new_amount = current_amount + amount
@@ -738,23 +868,69 @@ class FinanceAssistantApp(tk.Tk):
 
         self.update_goals_list()
 
-    def delete_completed_goal(self, goal_id):
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
-        conn.commit()
-        conn.close()
-        messagebox.showinfo("Успех", "Цель удалена.")
-        self.update_goals_list()
+    def delete_completed_goal(self):
+        """
+        Удаляет завершённую финансовую цель из базы данных и интерфейса.
+        """
+        # Получаем выбранный элемент
+        selected_item = self.goals_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Ошибка", "Выберите цель для удаления.")
+            return
 
+        # Получаем данные из выбранного элемента
+        item_values = self.goals_tree.item(selected_item)['values']
+        title = item_values[0]
 
+        # Подтверждение удаления
+        if messagebox.askyesno("Подтверждение", f"Вы уверены, что хотите удалить цель '{title}'?"):
+            try:
+                conn = sqlite3.connect('users.db')
+                cursor = conn.cursor()
+
+                # Удаляем цель из базы данных по её названию и пользователю
+                cursor.execute("""
+                    DELETE FROM goals 
+                    WHERE user_id = ? AND title = ?
+                """, (self.user[0], title))
+                conn.commit()
+                conn.close()
+
+                # Удаляем элемент из Treeview
+                self.goals_tree.delete(selected_item)
+
+                messagebox.showinfo("Успех", "Цель удалена.")
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось удалить цель: {e}")
+
+def validate_date(date_str):
+    """
+        Проверяет корректность и актуальность даты.
+
+        Args:
+            date_str (str): Дата в формате "ГГГГ-ММ-ДД".
+
+        Returns:
+            bool: True, если дата корректна и актуальна, иначе False.
+        """
+    try:
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        return date >= datetime.now().date()
+    except ValueError:
+        return False
 
 def clear_text():
+    """
+    Очищает текст
+    """
     login_entry.delete(0, 'end')
     password_entry.delete(0, 'end')
     confirm_password_entry.delete(0, 'end')
 
 def register():
+    """
+    Обрабатывает регистрацию нового пользователя.
+    """
     login = login_entry.get()
     password = password_entry.get()
     confirm_password = confirm_password_entry.get()
@@ -781,6 +957,9 @@ def register():
 
 
 def login():
+    """
+    Обрабатывает вход пользователя в систему.
+    """
     login = login_entry.get()
     password = password_entry.get()
     confirm_password = confirm_password_entry.get()
