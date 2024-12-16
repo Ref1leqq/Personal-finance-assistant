@@ -580,15 +580,13 @@ class FinanceAssistantApp(tk.Tk):
             if not title or not target_amount or not target_date:
                 messagebox.showerror("Ошибка", "Заполните все поля!")
                 return
+
+            check_sum_goal_entry(target_amount)
             if not validate_date(target_date):
                 messagebox.showerror("Ошибка", "Некорректный формат даты! Используйте ГГГГ-ММ-ДД.")
                 return
 
-            try:
-                target_amount = float(target_amount)
-            except ValueError:
-                messagebox.showerror("Ошибка", "Сумма цели должна быть числом!")
-                return
+
 
             # Добавляем текущую дату для поля creation_date
             creation_date = datetime.now().strftime("%Y-%m-%d")  # Получаем текущую дату в формате "ГГГГ-ММ-ДД"
@@ -956,6 +954,11 @@ def register():
         conn.close()
 
 
+def check_sum_goal_entry(goal):
+    if not goal.isdigit():
+        messagebox.showerror("Ошибка", "Цель должна быть положительным числом")
+        raise ValueError("Цель должна быть положительным числом")
+    return True
 
 def check_login(entryLogin):
     """
@@ -968,7 +971,7 @@ def check_login(entryLogin):
     :raises ValueError: if len(entryPassword) < 8
     """
     if len(entryLogin) < 3:
-        # messagebox.showerror("Ошибка!", "Логин слишком короткий! Должен содержать минимум 3 символов.")
+        messagebox.showerror("Ошибка!", "Логин слишком короткий! Должен содержать минимум 3 символов.")
         raise ValueError("Логин слишком короткий!")
     return True
 
@@ -984,7 +987,7 @@ def check_password(entryPassword):
     :raises ValueError: if len(entryPassword) < 8
     """
     if len(entryPassword) < 8:
-        # messagebox.showerror("Ошибка!", "Пароль слишком короткий! Должен содержать минимум 8 символов.")
+        messagebox.showerror("Ошибка!", "Пароль слишком короткий! Должен содержать минимум 8 символов.")
         raise ValueError("Пароль слишком короткий!")
     else:
         return True
@@ -1022,38 +1025,38 @@ def login():
 
 #create_db()
 
+if __name__ == "__main__":
+    window = tk.Tk()
+    window.resizable(width=False, height=False)
+    window.title("Вход/Регистрация")
+    window.geometry("800x600")
 
-window = tk.Tk()
-window.resizable(width=False, height=False)
-window.title("Вход/Регистрация")
-window.geometry("800x600")
+    icon = PhotoImage(file= "logo.png")
+    window.iconphoto(False, icon)
 
-icon = PhotoImage(file= "logo.png")
-window.iconphoto(False, icon)
+    app_label = tk.Label(window, text = "Финансовый помощник",fg="#57a1f8", font=('Microsoft Yahei UI Light',23,'bold'), pady=40)
+    app_label.place(relx=.5,anchor="n")
+    login_label = tk.Label(window, text="Логин:")
+    login_label.place(x=370,y=100)
+    login_entry = tk.Entry(window)
+    login_entry.place(x=300,y=130)
 
-app_label = tk.Label(window, text = "Финансовый помощник",fg="#57a1f8", font=('Microsoft Yahei UI Light',23,'bold'), pady=40)
-app_label.place(relx=.5,anchor="n")
-login_label = tk.Label(window, text="Логин:")
-login_label.place(x=370,y=100)
-login_entry = tk.Entry(window)
-login_entry.place(x=300,y=130)
+    password_label = tk.Label(window, text="Пароль:")
+    password_label.place(x=367,y=180)
+    password_entry = tk.Entry(window, show="*")
+    password_entry.place(x=300, y = 210)
 
-password_label = tk.Label(window, text="Пароль:")
-password_label.place(x=367,y=180)
-password_entry = tk.Entry(window, show="*")
-password_entry.place(x=300, y = 210)
+    confirm_password_label = tk.Label(window, text="Подтверждение пароля:")
+    confirm_password_label.place(x=315, y = 260)
+    confirm_password_entry = tk.Entry(window, show="*")
+    confirm_password_entry.place(x=300, y = 290)
 
-confirm_password_label = tk.Label(window, text="Подтверждение пароля:")
-confirm_password_label.place(x=315, y = 260)
-confirm_password_entry = tk.Entry(window, show="*")
-confirm_password_entry.place(x=300, y = 290)
+    login_button = tk.Button(window, text="Вход", command=login)
+    login_button.place(x=300,y=320)
 
-login_button = tk.Button(window, text="Вход", command=login)
-login_button.place(x=300,y=320)
+    register_button = tk.Button(window, text="Регистрация", command=register)
+    register_button.place(x=375,y=320)
 
-register_button = tk.Button(window, text="Регистрация", command=register)
-register_button.place(x=375,y=320)
-
-window.mainloop()
+    window.mainloop()
 
 
