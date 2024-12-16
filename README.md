@@ -61,6 +61,8 @@ finance-assistant/
 ├── users.db           # Database
 ├── logo.png           # Иконка приложения
 └── README.md          # Документация проекта
+└── requirements.txt   # Модули
+└── docs               # Документация
 ```
 
 ## Пример использования
