@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, PhotoImage
 import sqlite3
 from datetime import datetime, timedelta
-import threading
 import re
 import pandas as pd
 import matplotlib.pyplot as plt 
@@ -806,7 +805,7 @@ def login():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE login = ? AND password = ?", (login, password))
-    user = cursor.fetchone()
+    user = cursor.fetchone() # возвращает кортеж значений из бд о пользователе(возвращает одну строку)
     conn.close()
 
 
