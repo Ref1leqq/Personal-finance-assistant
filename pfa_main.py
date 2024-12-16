@@ -2,13 +2,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox, PhotoImage
 import sqlite3
 from datetime import datetime, timedelta
-import threading
+
 import re
 import pandas as pd
 import matplotlib.pyplot as plt
-import time
-import pydoctor
-import pytest
+
 import os
 os.chdir(os.path.dirname(__file__))
 
@@ -124,7 +122,6 @@ class FinanceAssistantApp(tk.Tk):
         self.user = user
         icon = PhotoImage(file="logo.png")
         self.iconphoto(False, icon)
-
         # Создание интерфейса
         self.create_main_interface()
         self.check_reminders_loop()
@@ -209,9 +206,9 @@ class FinanceAssistantApp(tk.Tk):
         total_expense = result[1] if result[1] is not None else 0.0
         current_balance = total_income - total_expense
 
-        self.balance_label.config(text=f"Текущий баланс: {current_balance:.2f} RUB")
-        self.earnings_label.config(text=f"Заработано: {total_income:.2f} RUB")
-        self.expenses_label.config(text=f"Потрачено: {total_expense:.2f} RUB")
+        self.balance_label.config(text=f"Текущий баланс: {current_balance} RUB")
+        self.earnings_label.config(text=f"Заработано: {total_income} RUB")
+        self.expenses_label.config(text=f"Потрачено: {total_expense} RUB")
 
     def setup_diagrams_page(self):
         """
@@ -959,6 +956,7 @@ def register():
         conn.close()
 
 
+
 def check_login(entryLogin):
     """
     Проверяет длину введенного логина.
@@ -970,7 +968,7 @@ def check_login(entryLogin):
     :raises ValueError: if len(entryPassword) < 8
     """
     if len(entryLogin) < 3:
-        messagebox.showerror("Ошибка!", "Логин слишком короткий! Должен содержать минимум 3 символов.")
+        # messagebox.showerror("Ошибка!", "Логин слишком короткий! Должен содержать минимум 3 символов.")
         raise ValueError("Логин слишком короткий!")
     return True
 
@@ -986,7 +984,7 @@ def check_password(entryPassword):
     :raises ValueError: if len(entryPassword) < 8
     """
     if len(entryPassword) < 8:
-        messagebox.showerror("Ошибка!", "Пароль слишком короткий! Должен содержать минимум 8 символов.")
+        # messagebox.showerror("Ошибка!", "Пароль слишком короткий! Должен содержать минимум 8 символов.")
         raise ValueError("Пароль слишком короткий!")
     else:
         return True
