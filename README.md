@@ -58,11 +58,12 @@
 ```
 finance-assistant/
 ├── pfa_main.py        # Основной файл приложения
+├── pfa_main_test.py   # pytest
 ├── users.db           # Database
 ├── logo.png           # Иконка приложения
-└── README.md          # Документация проекта
-└── requirements.txt   # Модули
-└── docs               # Документация
+├── README.md          # Документация проекта
+├── requirements.txt   # Модули
+├── docs               # Документация
 ```
 
 ## Пример использования
